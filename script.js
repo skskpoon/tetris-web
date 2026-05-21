@@ -218,3 +218,22 @@ function update(time = 0) {
 }
 
 update();
+document.getElementById("leftBtn").addEventListener("click", () => {
+  move(-1);
+  draw();
+});
+
+document.getElementById("rightBtn").addEventListener("click", () => {
+  move(1);
+  draw();
+});
+
+document.getElementById("downBtn").addEventListener("click", () => {
+  moveDown();
+  draw();
+});
+
+document.getElementById("rotateBtn").addEventListener("click", () => {
+  rotatePiece();
+  draw();
+});
