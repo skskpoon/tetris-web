@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Web Tetris</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -13,17 +14,23 @@
 
     <div class="side">
       <p>Score: <span id="score">0</span></p>
+
+      <p>Next:</p>
+      <canvas id="next" width="120" height="120"></canvas>
+
       <p>← →：移動</p>
       <p>↓：早く落とす</p>
       <p>↑：回転</p>
     </div>
-  
-    <div class="controls">
-  <button id="leftBtn">←</button>
-  <button id="downBtn">↓</button>
-  <button id="rightBtn">→</button>
-  <button id="rotateBtn">回転</button>
-</div>
+  </div>
+
+  <div class="controls">
+    <button id="leftBtn">←</button>
+    <button id="downBtn">↓</button>
+    <button id="rightBtn">→</button>
+    <button id="rotateBtn">回転</button>
+    <button id="musicBtn">音楽ON</button>
+  </div>
 
   <script src="script.js"></script>
 </body>

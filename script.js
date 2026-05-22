@@ -2,11 +2,16 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreElement = document.getElementById("score");
 
+const nextCanvas = document.getElementById("next");
+const nextCtx = nextCanvas.getContext("2d");
+
 const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
 let score = 0;
+let flashRows = [];
+let shakeTime = 0;
 
 const colors = [
   null,
@@ -61,6 +66,7 @@ function createPiece() {
 }
 
 let piece = createPiece();
+let nextPiece = createPiece();
 
 function drawBlock(x, y, color) {
   ctx.fillStyle = color;
@@ -73,14 +79,34 @@ function drawBlock(x, y, color) {
 function drawBoard() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  let shakeX = 0;
+  let shakeY = 0;
+
+  if (shakeTime > 0) {
+    shakeX = Math.random() * 6 - 3;
+    shakeY = Math.random() * 6 - 3;
+    shakeTime--;
+  }
+
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) {
       const value = board[y][x];
+
       if (value) {
         drawBlock(x, y, colors[value]);
       }
+
+      if (flashRows.includes(y)) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK, BLOCK);
+      }
     }
   }
+
+  ctx.restore();
 }
 
 function drawPiece() {
@@ -88,6 +114,38 @@ function drawPiece() {
     row.forEach((value, x) => {
       if (value) {
         drawBlock(piece.x + x, piece.y + y, colors[value]);
+      }
+    });
+  });
+}
+
+function drawNextPiece() {
+  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+
+  const matrix = nextPiece.matrix;
+  const size = 25;
+
+  const offsetX = (nextCanvas.width - matrix[0].length * size) / 2;
+  const offsetY = (nextCanvas.height - matrix.length * size) / 2;
+
+  matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) {
+        nextCtx.fillStyle = colors[value];
+        nextCtx.fillRect(
+          offsetX + x * size,
+          offsetY + y * size,
+          size,
+          size
+        );
+
+        nextCtx.strokeStyle = "#222";
+        nextCtx.strokeRect(
+          offsetX + x * size,
+          offsetY + y * size,
+          size,
+          size
+        );
       }
     });
   });
@@ -127,19 +185,31 @@ function merge() {
 
 function clearLines() {
   let lines = 0;
+  flashRows = [];
 
   for (let y = ROWS - 1; y >= 0; y--) {
     if (board[y].every(value => value !== 0)) {
-      board.splice(y, 1);
-      board.unshift(Array(COLS).fill(0));
-      lines++;
-      y++;
+      flashRows.push(y);
     }
   }
 
-  if (lines > 0) {
-    score += lines * 100;
-    scoreElement.textContent = score;
+  if (flashRows.length > 0) {
+    shakeTime = 12;
+
+    setTimeout(() => {
+      for (let y = ROWS - 1; y >= 0; y--) {
+        if (board[y].every(value => value !== 0)) {
+          board.splice(y, 1);
+          board.unshift(Array(COLS).fill(0));
+          lines++;
+          y++;
+        }
+      }
+
+      score += lines * 100;
+      scoreElement.textContent = score;
+      flashRows = [];
+    }, 120);
   }
 }
 
@@ -153,8 +223,11 @@ function moveDown() {
   if (collide()) {
     piece.y--;
     merge();
+    shakeTime = 4;
     clearLines();
-    piece = createPiece();
+
+    piece = nextPiece;
+    nextPiece = createPiece();
 
     if (collide()) {
       alert("GAME OVER");
@@ -197,6 +270,7 @@ document.addEventListener("keydown", event => {
 function draw() {
   drawBoard();
   drawPiece();
+  drawNextPiece();
 }
 
 let dropCounter = 0;
@@ -218,22 +292,77 @@ function update(time = 0) {
 }
 
 update();
-document.getElementById("leftBtn").addEventListener("click", () => {
-  move(-1);
-  draw();
-});
 
-document.getElementById("rightBtn").addEventListener("click", () => {
-  move(1);
-  draw();
-});
+// ===== スマホ/PC両対応ボタン操作 =====
+function bindButton(id, action) {
+  const button = document.getElementById(id);
 
-document.getElementById("downBtn").addEventListener("click", () => {
-  moveDown();
-  draw();
-});
+  button.addEventListener("touchstart", event => {
+    event.preventDefault();
+    action();
+    draw();
+  });
 
-document.getElementById("rotateBtn").addEventListener("click", () => {
-  rotatePiece();
-  draw();
-});
+  button.addEventListener("mousedown", event => {
+    event.preventDefault();
+    action();
+    draw();
+  });
+}
+
+bindButton("leftBtn", () => move(-1));
+bindButton("rightBtn", () => move(1));
+bindButton("downBtn", () => moveDown());
+bindButton("rotateBtn", () => rotatePiece());
+
+// ===== クラシック風BGM =====
+let audioCtx;
+let bgmStarted = false;
+
+const melody = [
+  659, 494, 523, 587, 523, 494, 440, 440,
+  523, 659, 587, 523, 494, 494, 523, 587,
+  659, 523, 440, 440
+];
+
+let melodyIndex = 0;
+
+function playTone(freq, duration) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = "square";
+  osc.frequency.value = freq;
+
+  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(
+    0.001,
+    audioCtx.currentTime + duration
+  );
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function startBGM() {
+  if (bgmStarted) return;
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  bgmStarted = true;
+
+  setInterval(() => {
+    const freq = melody[melodyIndex];
+    playTone(freq, 0.18);
+
+    melodyIndex++;
+
+    if (melodyIndex >= melody.length) {
+      melodyIndex = 0;
+    }
+  }, 220);
+}
+
+bindButton("musicBtn", () => startBGM());
